@@ -1,0 +1,21 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 11.00
+# Visual Studio 2010
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ebcse", "ebcse.csproj", "{C50969B5-343E-4B4A-BDB5-C692E137C185}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{C50969B5-343E-4B4A-BDB5-C692E137C185}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C50969B5-343E-4B4A-BDB5-C692E137C185}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C50969B5-343E-4B4A-BDB5-C692E137C185}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C50969B5-343E-4B4A-BDB5-C692E137C185}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(MonoDevelopProperties) = preSolution
+		StartupItem = ebcse.csproj
+		outputpath = tmp
+	EndGlobalSection
+EndGlobal

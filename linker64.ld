@@ -1,4 +1,4 @@
-ENTRY (_start)
+ENTRY (csmain)
 
 OUTPUT_FORMAT (binary)
  

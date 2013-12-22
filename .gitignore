@@ -1,7 +1,7 @@
 tmp/
-boring.log
-disk.img
-disk.vdi
+out/
 .DS_Store
 *.swp
+*.userprefs
+*.user
 

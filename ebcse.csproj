@@ -1,0 +1,105 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
+    <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
+    <OutputPath>out\</OutputPath>
+    <IntermediateOutputPath>tmp\</IntermediateOutputPath>
+    <ProductVersion>10.0.0</ProductVersion>
+    <SchemaVersion>2.0</SchemaVersion>
+    <ProjectGuid>{C50969B5-343E-4B4A-BDB5-C692E137C185}</ProjectGuid>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>ebcse</RootNamespace>
+    <AssemblyName>ebcse</AssemblyName>
+    <StartupObject>ebcse.Kernel</StartupObject>
+    <TargetFrameworkVersion>v2.0</TargetFrameworkVersion>
+    <WarningLevel>4</WarningLevel>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
+    <Optimize>false</Optimize>
+    <DefineConstants>DEBUG</DefineConstants>
+    <CustomCommands>
+      <CustomCommands>
+        <Command type="Execute" command="VBoxManage startvm because-ebcse" />
+      </CustomCommands>
+    </CustomCommands>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
+    <Optimize>true</Optimize>
+    <CustomCommands>
+      <CustomCommands>
+        <Command type="Execute" command="VBoxManage startvm because-ebcse" />
+      </CustomCommands>
+    </CustomCommands>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="Kernel.cs" />
+  </ItemGroup>
+  <Import Project="$(MSBuildBinPath)\Microsoft.CSharp.targets" />
+  <ItemGroup>
+    <Reference Include="libsupcs">
+      <HintPath>3rd\tysila\libsupcs.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="linker64.ld" />
+  </ItemGroup>
+  <ItemGroup>
+    <Assemble Include="bits.asm" />
+    <Assemble Include="two.asm" />
+  </ItemGroup>
+  <Target Name="ASM" Inputs="@(Assemble)" Outputs="@(Assemble-&gt;'$(IntermediateOutputPath)%(filename).o')">
+    <Exec Command="/usr/local/bin/nasm -f elf64 -o $(IntermediateOutputPath)%(Assemble.FileName).o %(Assemble.Identity)" Outputs="$(OutDir)bits.o" />
+  </Target>
+  <Target Name="Tysila" DependsOnTargets="Compile" Inputs="$(IntermediateOutputPath)$(TargetFileName)" Outputs="$(IntermediateOutputPath)$(TargetName).o">
+    <Exec Command="/usr/bin/mono $(ProjectDir)3rd/tysila/tysila2.exe -q -fno-rtti --arch x86_64-elf64-tysos --rename-epoint csmain -o $(IntermediateOutputPath)$(TargetName).o $(IntermediateOutputPath)$(TargetFileName)" />
+  </Target>
+  <Target Name="SysLink" DependsOnTargets="ASM; Compile; Tysila" Inputs="$(IntermediateOutputPath)*.o; linker64.ld" Outputs="$(IntermediateOutputPath)kernel64.sys">
+    <Exec Command="/Users/leaf/opt/cross/bin/x86_64-elf-ld -T linker64.ld -o $(IntermediateOutputPath)kernel64.sys `echo '@(Assemble-&gt;'$(IntermediateOutputPath)%(filename).o')' | sed -e 's/;/ /g'` $(IntermediateOutputPath)$(TargetName).o" />
+  </Target>
+  <!-- We butcher DeployOutputFiles here, but I think it should be OK -->
+  <Target Name="DeployOutputFiles" Outputs="$(OutDir)kernel64.sys" DependsOnTargets="SysLink" Inputs="$(IntermediateOutputPath)kernel64.sys">
+    <Copy SourceFiles="$(IntermediateOutputPath)kernel64.sys" DestinationFiles="$(OutDir)kernel64.sys">
+      <Output TaskParameter="DestinationFiles" ItemName="FileWrites" />
+    </Copy>
+  </Target>
+  <Target Name="MakeDiskImage" Outputs="$(OutDir)disk.img" DependsOnTargets="SysLink; DeployOutputFiles" Inputs="$(OutDir)kernel64.sys">
+    <Copy SourceFiles="$(ProjectDir)3rd\pure64\Pure64.img" DestinationFiles="$(IntermediateOutputPath)disk.img" />
+    <Exec Command="hdiutil attach $(IntermediateOutputPath)disk.img" />
+    <Copy SourceFiles="$(OutDir)kernel64.sys" DestinationFiles="/Volumes/BECAUSE/kernel64.sys" />
+    <Exec Command="hdiutil detach /Volumes/BECAUSE" />
+    <Copy SourceFiles="$(IntermediateOutputPath)disk.img" DestinationFiles="$(OutDir)disk.img" />
+  </Target>
+  <Target Name="MakeVdi" Outputs="$(OutDir)disk.vdi" DependsOnTargets="MakeDiskImage" Inputs="$(OutDir)disk.img">
+    <Exec Command="rm -f $(OutDir)disk.vdi" />
+    <Exec Command="VBoxManage convertfromraw $(OutDir)disk.img $(OutDir)disk.vdi --uuid '{1273a480-a098-4eb2-a1f6-8611ccd7a9f1}'" />
+  </Target>
+  <!-- Overriding CoreBuild depends to include our custom steps & change output to be kernel64.sys -->
+  <PropertyGroup>
+    <NewCoreBuildDependsOn>
+      PrepareForBuild;
+      GetFrameworkPaths;
+      GetReferenceAssemblyPaths;
+      PreBuildEvent;
+      ResolveReferences;
+      CopyFilesMarkedCopyLocal;
+      PrepareResources;
+      ASM;
+      Compile;
+      Tysila;
+      SysLink;
+      PrepareForRun;
+      DeployOutputFiles;
+      MakeDiskImage;
+      MakeVdi;
+      _RecordCleanFile;
+      PostBuildEvent
+    </NewCoreBuildDependsOn>
+  </PropertyGroup>
+  <Target Name="CoreBuild" Outputs="$(OutDir)kernel64.sys" DependsOnTargets="$(NewCoreBuildDependsOn)">
+    <OnError ExecuteTargets="_TimestampAfterCompile;PostBuildEvent" Condition=" '$(RunPostBuildEvent)' == 'Always' or '$(RunPostBuildEvent)' == 'OnOutputUpdated'" />
+    <OnError ExecuteTargets="_RecordCleanFile" />
+  </Target>
+</Project>
