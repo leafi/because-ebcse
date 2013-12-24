@@ -35,6 +35,7 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="Kernel.cs" />
+    <Compile Include="PCI.cs" />
   </ItemGroup>
   <Import Project="$(MSBuildBinPath)\Microsoft.CSharp.targets" />
   <ItemGroup>
@@ -53,11 +54,14 @@
   <Target Name="ASM" Inputs="@(Assemble)" Outputs="@(Assemble-&gt;'$(IntermediateOutputPath)%(filename).o')">
     <Exec Command="/usr/local/bin/nasm -f elf64 -o $(IntermediateOutputPath)%(Assemble.FileName).o %(Assemble.Identity)" Outputs="$(OutDir)bits.o" />
   </Target>
-  <Target Name="Tysila" DependsOnTargets="Compile" Inputs="$(IntermediateOutputPath)$(TargetFileName)" Outputs="$(IntermediateOutputPath)$(TargetName).o">
-    <Exec Command="/usr/bin/mono $(ProjectDir)3rd/tysila/tysila2.exe -q -fno-rtti --arch x86_64-elf64-tysos --rename-epoint csmain -o $(IntermediateOutputPath)$(TargetName).o $(IntermediateOutputPath)$(TargetFileName)" />
+  <Target Name="MonoTysila" Inputs="$(ProjectDir)3rd/tysila/mscorlib.dll" Outputs="$(IntermediateOutputPath)mscorlib.o">
+    <Exec Command="/usr/bin/mono $(ProjectDir)3rd/tysila/tysila2.exe -c -d --arch x86_64-elf64-tysos -o $(IntermediateOutputPath)mscorlib.o $(ProjectDir)3rd/tysila/mscorlib.dll" Outputs="$(IntermediateOutputPath)mscorlib.o" />
   </Target>
-  <Target Name="SysLink" DependsOnTargets="ASM; Compile; Tysila" Inputs="$(IntermediateOutputPath)*.o; linker64.ld" Outputs="$(IntermediateOutputPath)kernel64.sys">
-    <Exec Command="/Users/leaf/opt/cross/bin/x86_64-elf-ld -T linker64.ld -o $(IntermediateOutputPath)kernel64.sys `echo '@(Assemble-&gt;'$(IntermediateOutputPath)%(filename).o')' | sed -e 's/;/ /g'` $(IntermediateOutputPath)$(TargetName).o" />
+  <Target Name="Tysila" DependsOnTargets="Compile" Inputs="$(IntermediateOutputPath)$(TargetFileName)" Outputs="$(IntermediateOutputPath)$(TargetName).o">
+    <Exec Command="/usr/bin/mono $(ProjectDir)3rd/tysila/tysila2.exe -d --arch x86_64-elf64-tysos --rename-epoint csmain --extra-typeinfo _ZPjTI --extra-typeinfo _Zu1ZX9TysosTypeTI --extra-method _Zu1AX9TysosType1_0__M_0_7#2Ector_Rv_P2u1ti --exclude $(ProjectDir)3rd/tysila/mscorlib_syms.txt -o $(IntermediateOutputPath)$(TargetName).o $(IntermediateOutputPath)$(TargetFileName)" />
+  </Target>
+  <Target Name="SysLink" DependsOnTargets="ASM; Compile; MonoTysila; Tysila" Inputs="$(IntermediateOutputPath)*.o; linker64.ld" Outputs="$(IntermediateOutputPath)kernel64.sys">
+    <Exec Command="/Users/leaf/opt/cross/bin/x86_64-elf-ld -T linker64.ld -o $(IntermediateOutputPath)kernel64.sys $(IntermediateOutputPath)mscorlib.o $(ProjectDir)3rd/tysila/undefined.o `echo '@(Assemble-&gt;'$(IntermediateOutputPath)%(filename).o')' | sed -e 's/;/ /g'` $(IntermediateOutputPath)$(TargetName).o $(ProjectDir)3rd/tysila/libsupcs.a" />
   </Target>
   <!-- We butcher DeployOutputFiles here, but I think it should be OK -->
   <Target Name="DeployOutputFiles" Outputs="$(OutDir)kernel64.sys" DependsOnTargets="SysLink" Inputs="$(IntermediateOutputPath)kernel64.sys">
@@ -65,7 +69,7 @@
       <Output TaskParameter="DestinationFiles" ItemName="FileWrites" />
     </Copy>
   </Target>
-  <Target Name="MakeDiskImage" Outputs="$(OutDir)disk.img" DependsOnTargets="SysLink; DeployOutputFiles" Inputs="$(OutDir)kernel64.sys">
+  <Target Name="MakeDiskImage" Outputs="$(OutDir)disk.img" DependsOnTargets="SysLink; DeployOutputFiles" Inputs="$(ProjectDir)3rd/pure64/Pure64.img;$(OutDir)kernel64.sys">
     <Copy SourceFiles="$(ProjectDir)3rd\pure64\Pure64.img" DestinationFiles="$(IntermediateOutputPath)disk.img" />
     <Exec Command="hdiutil attach $(IntermediateOutputPath)disk.img" />
     <Copy SourceFiles="$(OutDir)kernel64.sys" DestinationFiles="/Volumes/BECAUSE/kernel64.sys" />
@@ -86,6 +90,7 @@
       ResolveReferences;
       CopyFilesMarkedCopyLocal;
       PrepareResources;
+      MonoTysila;
       ASM;
       Compile;
       Tysila;
